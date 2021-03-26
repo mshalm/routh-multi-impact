@@ -1,6 +1,12 @@
 function [x_res, y_res] = LCPSolver_Remy(A, b, U)
-% LCPSolver is a naive solver for linear complimentary problems of the form
-% y = A*x + b with x>0, y>0, and x*y = 0 
+%
+% This code was adapted from the following publicaton:
+% 
+% C. David Remy. "Ambiguous collision outcomes and sliding with infinite
+% friction in models of legged systems," IJRR 2017
+%
+% LCPSolver_Remy is a naive solver for linear complimentary problems:
+% y = A*x + b with x>0, y>0, and x*y = 0.
 % This solver returns every solution by brute force.
 %
 % if U flag is set, only solutions corresponding to a unique U * x are
@@ -29,7 +35,6 @@ function [x_res, y_res] = LCPSolver_Remy(A, b, U)
         combs = dec2bin(0:2^n-1) == '1';
         indices = 1:n;
         parfor i = 1:2^n
-            %for i = 1:length(inds)
             % prepare output
             A_part = A(combs(i, :), combs(i, :));
             if rank(A_part)/nnz(combs(i, :))==1
