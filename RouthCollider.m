@@ -1,4 +1,4 @@
-function [v, l, terminated, err_max] = RouthCollider(M, Jn, Jf, mu, vm, h, N, p)
+function [v, l, terminated, err_max, i] = RouthCollider(M, Jn, Jf, mu, vm, h, N, p)
 % initialize loop vars
 v = vm;
 [m, ~] = size(Jn);

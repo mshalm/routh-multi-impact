@@ -92,6 +92,11 @@ function [v_staged, v_equal, v_Routh] = ...
     v_Routh = cell(1, M_routh);
     v_Routh_finished = false(1, M_routh);
     routh_err = zeros(1, M_routh);
+    solves = zeros(1, M_routh);
+    
+    p = gcp;
+    t_start = cputime;
+    tic;
     parfor i = 1:M_routh
         k_i = k(i, :);
         if reduce
@@ -100,11 +105,14 @@ function [v_staged, v_equal, v_Routh] = ...
         else
             p = reshape(k_i',[m N_routh]);
         end
-
-        [v_Routh{i}, ~, v_Routh_finished(i), routh_err(i)] = ...
+        
+        [v_Routh{i}, ~, v_Routh_finished(i), routh_err(i), solves(i)] = ...
             RouthCollider(M, Jn, Jf, mu, vm, h, N_routh, p);
 
     end
+    tot_wall_clock_time = toc;
+    tot_comp_time = cputime - t_start;
+    tot_solves = sum(solves);
     %{
     spmd
         inds = labindex:numlabs:M_routh;
@@ -136,8 +144,11 @@ function [v_staged, v_equal, v_Routh] = ...
     TOL = 1e-6;
     accepted = v_Routh_finished & (routh_err <= TOL);
     v_Routh = v_Routh(accepted);
-    fprintf("Routh Trajectories completed:\n max violation %.10e\n completion percentage %f \n accept percentage %f \n\n", ...
+    fprintf("Routh Trajectories Completed:\n max violation %.10e\n completion percentage %f \n accept percentage %f \n\n", ...
         max(routh_err), 100 * nnz(v_Routh_finished) / numel(v_Routh_finished), ...
         100 * nnz(accepted) / numel(accepted));
+    tot_thread_time = tot_wall_clock_time * p.NumWorkers;
+    fprintf("Routh Computational Performance:\n total solves: %f\n total wall time across threads: %f\n time / solve: %f\n time / impact: %f\n solves / impact: %f\n \n\n", ...
+        tot_solves, tot_thread_time, tot_thread_time / tot_solves, tot_thread_time / M_routh, tot_solves / M_routh);
 end
 

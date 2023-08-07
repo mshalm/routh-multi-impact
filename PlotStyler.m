@@ -32,9 +32,9 @@ classdef PlotStyler < matlab.mixin.Copyable
         HEIGHT = 500;
         ASPECT = 1;
         INTERPRETER = 'Latex';
-        LATEXFONTSIZE = 18;
+        LATEXFONTSIZE = 20;
         POINTMARKERSIZE = 300;
-        ARROWSCALE = 0.4;
+        ARROWSCALE = 1;
         MINARROWLENGTH = 1e-1;
         TEXT_POS_CODES = {'b', 't', 'l', 'r', 'bl', 'br', 'tl', 'tr'};
         TEXT_HOR = {'center', 'center', 'right', 'left', 'right', 'left', 'right', 'left'};
@@ -43,9 +43,10 @@ classdef PlotStyler < matlab.mixin.Copyable
         LABELALIGNMENT = 't';
         ARROWALIGNMENT = 't';
         LABELMARGIN = 0.0;
-        LATEXLABELFONTMULTIPLIER = 1.8;
-        LATEXTITLEFONTMULTIPLIER = 2;
-        LATEXDIAGRAMFONTMULTIPLIER = 3;
+        LATEXLABELFONTMULTIPLIER = 1.2;
+        LATEXCOLORBARLABELFONTMULTIPLIER = 1.2;
+        LATEXTITLEFONTMULTIPLIER = 1.2;
+        LATEXDIAGRAMFONTMULTIPLIER = 2.5;
         ABS_PADDING = 1e-4;
         REL_PADDING = 0.1;
         PRINTIMAGEEXTENSION = '.png'; % '.eps';
@@ -54,10 +55,10 @@ classdef PlotStyler < matlab.mixin.Copyable
     end
     
     properties
-        fig
-        axesList
-        height = PlotStyler.HEIGHT
-        aspect = PlotStyler.ASPECT
+        fig;
+        axesList;
+        height = PlotStyler.HEIGHT;
+        aspect = PlotStyler.ASPECT;
         interpreter = PlotStyler.INTERPRETER;
         colors = PlotStyler.PENNCOLORS;
         linestyles = PlotStyler.ALLSTYLES;
@@ -248,15 +249,20 @@ classdef PlotStyler < matlab.mixin.Copyable
             end
         end
         
-        function sc = plotPoint(obj, point, txt, color, rot, alignment)
+        function sc = plotPoint(obj, point, txt, color, rot, alignment, sc)
             scatargs = {};
             if nargin > 3
                color = PlotStyler.colorComponents(color);
                scatargs = {color};
             end
+            
+            if nargin < 7
+                sc = 1;
+            end
+            
             scatargs{end + 1} = 'filled';
             sc = scatter(point(1,:), point(2,:), ...
-                PlotStyler.POINTMARKERSIZE, scatargs{:});
+                PlotStyler.POINTMARKERSIZE * sc, scatargs{:});
 
             % TODO: multiple points support
             if nargin >= 3 && numel(point) == 2
@@ -272,6 +278,42 @@ classdef PlotStyler < matlab.mixin.Copyable
                 obj.labelPoint(point, txt, sc.CData, rot, alignment);
 
             end
+        end
+        
+        function s = plotSpin(obj, point, size, spin, txt, color, alignment)
+            lineargs = {'LineWidth', obj.linewidth};
+            color = PlotStyler.colorComponents(color);
+            lineargs{end+1} = 'Color';
+            lineargs{end+1} = PlotStyler.darken(color);
+            
+            clockwise = spin < 0;
+            t = (0.75*pi):0.01:(2.25*pi);
+            s = size*[cos(t); sin(t)] + point;
+            plot(s(1, :), s(2, :), lineargs{:});
+            
+            headsize = 0.5 * size;
+            
+            if clockwise
+                p = [1 sqrt(3) -1;
+                     -1 sqrt(3) 1];
+                e = s(:, 1);
+            else
+                p = [1 -sqrt(3) -1;
+                     1 sqrt(3) -1];
+                e = s(:, end);
+            end
+            p = p * size / 4 + e;
+            pgon = polyshape(p(1,:),p(2,:));
+            pgon_plot = plot(pgon);
+            pgon_plot.FaceColor = color;
+            
+            if ~strcmp(txt, '')
+                [~, m] = obj.parseAlignment(alignment);
+                m = 1.25 * size * m / norm(m);
+                text_point = m + point;
+                obj.labelPoint(text_point, txt, color, 0., alignment);
+            end
+            
         end
         
         function q = plotArrow(obj, points, arrows, txt, color, alignment)
@@ -386,6 +428,23 @@ classdef PlotStyler < matlab.mixin.Copyable
                 axes(ax);
                 eval(['axis ', char_array]);
             end
+        end
+        
+        function colorbar(obj, label, is_log)
+            cH = colorbar;
+            colormap jet;
+            if is_log
+                set(gca,'ColorScale','log');
+            end
+            cH.TickLabelInterpreter = obj.interpreter;
+            label_font = PlotStyler.LATEXCOLORBARLABELFONTMULTIPLIER ...
+                * obj.fontsize;
+            ylabel(cH, label, ...
+                'FontSize', label_font, 'Rotation', 90, ...
+                'Interpreter' ,obj.interpreter);
+            
+            % adjust plotting box to acomodate colorbar
+            set(gca, 'ActivePositionProperty', 'OuterPosition');
         end
         
         function grid(obj, minor)
@@ -586,8 +645,8 @@ classdef PlotStyler < matlab.mixin.Copyable
                else
                    c = PlotStyler.hex2rgb(c);
                end
-           elseif ~(size(c, 1) == 1 && size(c, 2) == 3)
-               error('color illegible!');
+           elseif ~(size(c, 2) == 3)
+               warning('color not passed as 3-tuples!');
            end
         end
         

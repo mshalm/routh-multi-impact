@@ -35,7 +35,7 @@ function PlotImpacts(fbd, v_staged, v_anitescu, ...
     % plot free body diagrams
     
     % label contact points and velocities
-    label_cb = @(f) ContactPointLabelCallback(label_cb(f), ...
+    label_cb = @(f, s) ContactPointLabelCallback(label_cb(f, s), ...
         bodies, pts, alphabet);
     
     
@@ -95,7 +95,7 @@ function limits = PlotDiagrams(fbd, vm, v_staged, v_anitescu, alphabet, ...
         fbd.Velocity = vm;
         
         limits = zeros(0, 4);
-        fbd = fbd.view(label_cb, lim_set{:});
+        fbd = fbd.view(label_cb, -1, lim_set{:});
         limits = [limits; xlim(gca) ylim(gca)];
         if do_save
             fbd.Styler.print([fbd_prefix '_vm']);
@@ -107,7 +107,11 @@ function limits = PlotDiagrams(fbd, vm, v_staged, v_anitescu, alphabet, ...
                 filename = ...
                     [fbd_prefix '_' alphabet(i) '_' int2str(j)];
                 fbd.Velocity = v_staged{i}(:, j);
-                fbd = fbd.view(label_cb, lim_set{:});
+                stage = 0;
+                if j == size(v_staged{i}, 2)
+                   stage = 1; 
+                end
+                fbd = fbd.view(label_cb, stage, lim_set{:});
                 limits = [limits; xlim(gca) ylim(gca)];
                 if do_save
                     fbd.Styler.print(filename);
@@ -119,7 +123,7 @@ function limits = PlotDiagrams(fbd, vm, v_staged, v_anitescu, alphabet, ...
         for i = 1:length(v_anitescu)
             filename = [fbd_prefix '_Simultaneous_' int2str(i)];
             fbd.Velocity = v_anitescu{i}(:, 2);
-            fbd = fbd.view(label_cb, lim_set{:});
+            fbd = fbd.view(label_cb, 1, lim_set{:});
             limits = [limits; xlim(gca) ylim(gca)];
             if do_save
                 fbd.Styler.print(filename);

@@ -7,11 +7,13 @@ classdef FreeBodyDiagram
         Configuration
         Velocity
         Styler
+        PhiTolerance = 1e-6;
     end
     
     methods
         function obj = FreeBodyDiagram()
             obj.Tree = rigidBodyTree();
+            obj.Tree.Gravity = [0 (-9.81) 0];
             obj.Tree.DataFormat = 'column';
             
             obj.Shapes = {};
@@ -27,6 +29,10 @@ classdef FreeBodyDiagram
         
         function M = massMatrix(obj)
             M = obj.Tree.massMatrix(obj.Configuration);
+        end
+        
+        function M = forwardDynamics(obj)
+            M = obj.Tree.forwardDynamics(obj.Configuration, obj.Velocity);
         end
         
         function obj = addFrame(obj, parent, name, jtype, varargin)
@@ -50,10 +56,8 @@ classdef FreeBodyDiagram
         end
         
         function J = pointJacobian(obj, shapename, points)
+            points = obj.worldFrameOriginDisplacement(shapename, points);
             shape = obj.getShape(shapename);
-            shape_tf = obj.getTransform(shape.ParentName);
-            [~, origin] = FreeBodyDiagram.tform2Rp(shape_tf);
-            points = shape.pointsInBase(points, shape_tf) - origin;
             N = size(points, 2);
             Jf = repmat(eye(3), [N 1]);
             Jf(1:3:end,3) = -points(2,:)';
@@ -61,11 +65,25 @@ classdef FreeBodyDiagram
             J = Jf * obj.geometricJacobian(shape.ParentName);
         end
         
+        function pts_world = worldFrameOriginDisplacement(obj, shapename, points)
+            shape = obj.getShape(shapename);
+            shape_tf = obj.getTransform(shape.ParentName);
+            [~, origin] = FreeBodyDiagram.tform2Rp(shape_tf);
+            pts_world = shape.pointsInBase(points, shape_tf) - origin;
+        end
+        
         function obj = labelPoint(obj, shapename, local_pt, varargin)
             shape = obj.getShape(shapename);
             shape_tf = obj.getTransform(shape.ParentName);
             point = shape.pointsInBase(local_pt, shape_tf);
             obj.Styler.plotPoint(point, varargin{:});
+        end
+        
+        function obj = labelSpin(obj, shapename, local_pt, size, spin, varargin)
+            shape = obj.getShape(shapename);
+            shape_tf = obj.getTransform(shape.ParentName);
+            point = shape.pointsInBase(local_pt, shape_tf);
+            obj.Styler.plotSpin(point, size, spin, varargin{:});
         end
         
         function obj = labelArrow(obj, shapename, local_pt, arr, varargin)
@@ -80,6 +98,13 @@ classdef FreeBodyDiagram
                 obj.pointJacobian(shapename, local_pt) * ...
                 obj.Velocity;
             obj.labelArrow(shapename, local_pt, V, varargin{:});
+        end
+        
+        function obj = labelAngularVelocity(obj, shapename, local_pt, size, varargin)
+            omega = [0 0 1] * ...
+                obj.pointJacobian(shapename, local_pt) * ...
+                obj.Velocity;
+            obj.labelSpin(shapename, local_pt, size, omega, varargin{:});
         end
         
         function [pts1, pts2, normals, phi] = pairContacts(obj, b1, b2)
@@ -193,13 +218,15 @@ classdef FreeBodyDiagram
             [Jn, Jf] = obj.contactTerms(varargin{:});
         end
         
-        function [Jn, Jf, pts, bodies] = contactTerms(obj, active)
+        function [Jn, Jf, pts, bodies, phi_all, bias_all] = contactTerms(obj, active)
             if nargin < 2
                 active = true;
             end
             V = numel(obj.Velocity);
             Jn = zeros(0,V);
             Jf = zeros(0,V);
+            phi_all = zeros(0,1);
+            bias_all = zeros(0,2);
             pts = cell(1, 0);
             bodies = cell(1, 0);
             for i = 1:length(obj.Shapes)
@@ -211,7 +238,7 @@ classdef FreeBodyDiagram
                     if ~strcmp(b1.ParentName, b2.ParentName)
                         [p1, p2, n, phi] = obj.pairContacts(b1, b2);
                         if active
-                            ac = phi <= 1e-6;
+                            ac = phi <= obj.PhiTolerance;
                             phi = phi(ac);
                             p1 = p1(:,ac);
                             p2 = p2(:,ac);
@@ -234,6 +261,24 @@ classdef FreeBodyDiagram
                                 pointToContactJacobians(n, J1, J2);
                             Jn = [Jn; Jn12];
                             Jf = [Jf; Jf12];
+                            phi_all = [phi_all; phi(:)];
+                            
+                            % calculate bias term (dJ/dt) * v
+                            % in 2d, bias is simply -pts * omega^2
+                            % need to put in world frame coords
+                            p1_w = obj.worldFrameOriginDisplacement(b1.Name, p1);
+                            v1_spatial = J1 * obj.Velocity;
+                            omega1 = v1_spatial(3:3:end);
+                            bias1 = -(omega1 .^ 2)' .* p1_w;
+                            
+                            p2_w = obj.worldFrameOriginDisplacement(b2.Name, p2);
+                            v2_spatial = J2 * obj.Velocity;
+                            omega2 = v2_spatial(3:3:end);
+                            bias2 = -(omega2 .^ 2)' .* p2_w;
+                            
+                            bias_world = bias2 - bias1;
+                            bias = obj.pointToContactBias(n, bias_world);
+                            bias_all = [bias_all; bias'];
                         end
                     end
                 end
@@ -359,12 +404,15 @@ classdef FreeBodyDiagram
             bb = shape.boundingBox(parent_tf);
         end
         
-        function obj = view(obj, label_callback, limits)
+        function obj = view(obj, label_callback, stage, limits)
             if nargin < 2
-               label_callback = @(x) x; 
+               label_callback = @(x, s) x; 
+            end
+            if nargin < 3
+                stage = 0;
             end
             obj.Styler = PlotStyler();
-            if nargin > 2
+            if nargin > 3
                 limits(1:2) = PlotStyler.padAxis(limits(1:2), 0.05, 0.02);
                 limits(3:4) = PlotStyler.padAxis(limits(3:4), 0.05, 0.02);
                 dy = limits(4) - limits(3);
@@ -394,7 +442,7 @@ classdef FreeBodyDiagram
                     bbox = [bbox; shape.boundingBox(parent_tf)];
                 end
             end
-            obj = label_callback(obj);
+            obj = label_callback(obj, stage);
             obj.Styler.axisStyle('equal off tight manual');
             for i = 1:length(obj.Shapes)
                 shape = obj.Shapes{i};
@@ -405,7 +453,7 @@ classdef FreeBodyDiagram
                     uistack(obj.Shapes{i}.PlotHandle, 'bottom');
                 end
             end
-            if nargin > 2
+            if nargin > 3
                 xlim(limits(1:2));
                 ylim(limits(3:4));
             end
@@ -509,14 +557,27 @@ classdef FreeBodyDiagram
             Jf = zeros(N, Q);
             Jrel = J2 - J1;
             for i=1:N
+               T = FreeBodyDiagram.contactFrameProjection(n(:,i));
                Jrel_i = Jrel((1:2) + 3*(i-1), :);
-               Jn(i, :) = n(:,i)'*Jrel_i; 
-               Jf(i, :) = [n(2,i) n(1,i)]*Jrel_i; 
+               Jn(i, :) = T(1,:)*Jrel_i; 
+               Jf(i, :) = T(2,:)*Jrel_i; 
             end
         end
         
-        function J = inertiavec2mat(Jvec)
-            
+        function bias = pointToContactBias(n, bias_world)
+            N = size(n, 2);
+            bias = zeros(2, N);
+            bias = bias_world;
+            % TODO: vectorize
+            for i=1:N
+                T = FreeBodyDiagram.contactFrameProjection(n(:,i));
+                bias(:, i) = T * bias_world(:, i);
+            end
+        end
+        
+        function T = contactFrameProjection(n)
+            T = [n';
+                 n(2) n(1)];
         end
         
     end

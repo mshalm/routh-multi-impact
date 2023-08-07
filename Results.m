@@ -1,13 +1,14 @@
 function Results(only_plot)
     if nargin == 0
-        only_plot = false(1,5);
+        only_plot = true(1,5);
     end
     clf;
     close all;
-    BoxWall(only_plot(1));
-    Phone(only_plot(2));
-    CompassGait(only_plot(3));
-    RAMone(only_plot(4));
+    %BoxWall(only_plot(1));
+    %Phone(only_plot(2));
+    %CompareCompliantContact(true);
+    %CompassGait(only_plot(3));
+    %RAMone(only_plot(4));
     BallStack(only_plot(5));
 end
 
@@ -50,53 +51,8 @@ function BoxWall(varargin)
     fbd.Velocity = [v0 0 0]';
     
     % set up labelling callback
-    label_callback = @(f) f.labelVelocity('box', [0 0]', '$v$', 'r');
-    
-    % run experiment
-    TwoContactExperiment(fbd, mu_mat, M_Routh, N_Routh, h, ...
-        label_callback, varargin{:});
-end
-
-function Phone(varargin)
-    % dimensions
-    % width
-    a = .07444; 
-    
-    % height
-    b = .16094;
-    
-    % central mass
-    m = .190;
-    
-    % friction
-    mu = 1;
-    mu_mat = diag([mu mu]);
-    
-    % drop height
-    y_init = 0.001;
-    v0 = sqrt(2 * 9.81 * y_init);
-    
-    % sim params
-    h = ceil(v0 / 0.1) * 0.2;
-    N_Routh = 10;
-    M_Routh = 2 ^ 14;
-    
-    % construct system
-    fbd = FreeBodyDiagram();
-    
-    % rimless wheel
-    fbd = fbd.addFrame('base', 'object', 'floating');
-    fbd = fbd.addBox('object', 'phone', a, b, m, 'y');
-    
-    % floor
-    fbd = fbd.addWall('floor', [0 1], 0, 'l2');
-    
-    % construct initial condition
-    fbd.Configuration = [0 b/2 0]';
-    fbd.Velocity = [0 -v0 0]';
-    
-    % set up labelling callback
-    label_callback = @(f) f.labelVelocity('phone', [0 0]', '$v$', 'r');
+    label_callback = @(f, s) f.labelVelocity(...
+        'box', [0 0]', v_of_stage(s), 'r');
     
     % run experiment
     TwoContactExperiment(fbd, mu_mat, M_Routh, N_Routh, h, ...
@@ -123,7 +79,7 @@ function CompassGait(varargin)
     x0 = -l * sin(phi);
     y0 =  l * cos(phi);
     
-    dphi0 = 2 ^ (-1);
+    dphi0 = 2 ^ (-2);
     dx0 = -l * cos(phi) * dphi0;
     dy0 = -l * sin(phi) * dphi0;
     
@@ -133,7 +89,7 @@ function CompassGait(varargin)
     mu_mat = diag([mu mu]);
     
     % sim params
-    h = 2 * dphi0; %1
+    h = 1 * dphi0; %.25
     N_Routh = 5;
     M_Routh = 2 ^ 20; %21
     
@@ -163,8 +119,8 @@ function CompassGait(varargin)
     fbd.Velocity = [dx0 dy0 dphi0 dphi0]';
     
     % set up labelling callback
-    label_callback = @(f) f ...
-        .labelVelocity('trailing_rod', 'r', '$v$', 'r');
+    label_callback = @(f, s) f ...
+        .labelVelocity('trailing_rod', 'r', v_of_stage(s), 'r');
 
     % run experiment
     TwoContactExperiment(fbd, mu_mat, M_Routh, N_Routh, h, ...
@@ -233,9 +189,9 @@ function RAMone(varargin)
     mu_mat = diag([mu mu]);
     
     % sim params
-    h = 2 ^ (-3);
-    N_Routh = 3 / h;
-    M_Routh = 2 ^ 20;
+    h = 1;%2 ^ (-3);
+    N_Routh = 10;%3 / h;
+    M_Routh = 2 ^ 12;
     
     
     % construct system
@@ -282,11 +238,21 @@ function RAMone(varargin)
     fbd.Velocity = [-Jf(2, 3) -Jn(2, 3) 1 0 0 0 0]';
     
     % set up labelling callback
-    label_callback = @(f) f;
+    label_callback = @(f,s) f;
     
     % run experiment
     TwoContactExperiment(fbd, mu_mat, M_Routh, N_Routh, h, ...
         label_callback, varargin{:});
+end
+
+function l = v_of_stage(stage)
+    l = '$v$';
+    if stage == -1
+        l = '$v^-$';
+    end
+    if stage == 1
+        l = '$v^+$';
+    end
 end
 
 function BallStack(varargin)
@@ -316,7 +282,7 @@ function BallStack(varargin)
     % sim params
     h = 1;
     N_Routh = 10 / h; %2 / h; 
-    M_Routh = 2 ^ 20;
+    M_Routh = 2 ^ 10; %20
     
     
     % construct system
@@ -365,33 +331,6 @@ function BallStack(varargin)
     % run experiment
     SymmetricContactExperiment(fbd, mu_mat, M_Routh, N_Routh, h, ...
         label_callback, symmetry, varargin{:});
-end
-
-
-function TwoContactExperiment(fbd, mu_mat,  M_Routh, N_Routh, h, ...
-    label_cb, only_plot)
-
-    % extract figure name prefix from parent function
-    prefix = dbstack(1).name;
-    save_file = [prefix '_data.mat'];
-    
-    % load data if only plotting
-    if nargin < 7
-        only_plot = false;
-    end
-    
-    if only_plot
-        load(save_file);
-    else
-        tic;
-        [v_s, v_a, v_r] = ...
-            CompareImpactMethods(fbd, mu_mat, M_Routh, N_Routh, h, false);
-        toc
-        save(save_file);
-    end
-
-    % plot figures
-    PlotImpacts(fbd, v_s, v_a, v_r, prefix, label_cb);
 end
 
 function SymmetricContactExperiment(fbd, mu_mat,  M_Routh, N_Routh, h, ...
