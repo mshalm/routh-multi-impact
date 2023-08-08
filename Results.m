@@ -1,6 +1,6 @@
 function Results(only_plot)
     if nargin == 0
-        only_plot = true(1,5);
+        only_plot = false(1,5);
     end
     clf;
     close all;
@@ -189,9 +189,9 @@ function RAMone(varargin)
     mu_mat = diag([mu mu]);
     
     % sim params
-    h = 1;%2 ^ (-3);
-    N_Routh = 10;%3 / h;
-    M_Routh = 2 ^ 12;
+    h = 1;
+    N_Routh = 10;
+    M_Routh = 2 ^ 20;
     
     
     % construct system
@@ -281,8 +281,8 @@ function BallStack(varargin)
     
     % sim params
     h = 1;
-    N_Routh = 10 / h; %2 / h; 
-    M_Routh = 2 ^ 10; %20
+    N_Routh = 10 / h; 
+    M_Routh = 2 ^ 20;
     
     
     % construct system
@@ -320,7 +320,7 @@ function BallStack(varargin)
     fbd.Velocity = velocity';
     
     % set up labelling callback
-    label_callback = @(f) f;
+    label_callback = @(f, s) f;
     
     Z = zeros(3);
     XF = diag([-1 1 -1]);
@@ -334,7 +334,7 @@ function BallStack(varargin)
 end
 
 function SymmetricContactExperiment(fbd, mu_mat,  M_Routh, N_Routh, h, ...
-    label_cb, symmetry, only_plot)
+    label_cb, symmetry, skip_run)
 
     % extract figure name prefix from parent function
     prefix = dbstack(1).name;
@@ -342,17 +342,17 @@ function SymmetricContactExperiment(fbd, mu_mat,  M_Routh, N_Routh, h, ...
     
     % load data if only plotting
     if nargin < 8
-        only_plot = false;
+        skip_run = false;
     end
     
-    if only_plot
+    if skip_run
         load(save_file);
     else
         tic;
         [v_s, v_a, v_r] = ...
             CompareImpactMethods(fbd, mu_mat, M_Routh, N_Routh, h, false);
         toc
-        save(save_file);
+        save(save_file, '-regexp', '^(?!(skip_run|label_cb)$).');
     end
     
     for i=1:length(v_s)

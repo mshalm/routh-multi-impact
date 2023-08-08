@@ -1,6 +1,6 @@
-function ZenoPhone(skip_run)
+function ZenoBlock()
     % get freebody diagram
-    [~, fbd] = Phone(skip_run, true);
+    [~, fbd] = Phone(false, true);
     
     omega_0 = 1;
     N_CYCLES = 10;
@@ -53,7 +53,7 @@ function ZenoPhone(skip_run)
         limits = zeros(0, 4);
         for i=1:4
             fbd = setup_state(fbd, states{i});
-            fbd = fbd.view(@(f) DiagramLabelCallback(...
+            fbd = fbd.view(@(f, stage) DiagramLabelCallback(...
                 f, points{i}, spins{i}, labels{i}), lim_set{:});
             limits = [limits; xlim(gca) ylim(gca)];
             if do_save
