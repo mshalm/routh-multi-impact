@@ -4,11 +4,11 @@ function Results(only_plot)
     end
     clf;
     close all;
-    %BoxWall(only_plot(1));
-    %Phone(only_plot(2));
-    %CompareCompliantContact(true);
-    %CompassGait(only_plot(3));
-    %RAMone(only_plot(4));
+    BoxWall(only_plot(1));
+    Phone(only_plot(2));
+    CompareCompliantContact(true);
+    CompassGait(only_plot(3));
+    RAMone(only_plot(4));
     BallStack(only_plot(5));
 end
 
@@ -28,7 +28,7 @@ function BoxWall(varargin)
     v0 = 1;
     
     % sim params
-    h = 2; %.15
+    h = 2;
     N_Routh = round(10 / h);
     M_Routh = 2 ^ 18;
     

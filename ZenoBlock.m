@@ -102,17 +102,21 @@ function ZenoBlock()
     
     styler = PlotStyler();
     hold on;
-
+    yyaxis left;
     plot(s(1:end-1), dt_ds, styler.linestyles{1});
+    ylabel('Time Accumulation Rate (Unitless)');
+    yyaxis right;
+    ylabel('Impulsee Accumulation Rate [N]');
     plot(s(1:end-1), dLn1_ds, styler.linestyles{2});
     plot(s(1:end-1), dLn2_ds, styler.linestyles{3});
 
     legend('$\dot t$', '$\lambda_{n,A}$', '$\lambda_{n,B}$');
 
-    title('Time \& Impulse Accumulation Rates');
-    xlabel('$s$ [sec]');
+    title('Time and Impulse Accumulation');
+    xlabel('$s$ [s]');
     styler.asSeries();
     styler.print([prefix 't_Lambda_rates']);
+    
     
     
     % plot time series:
@@ -124,6 +128,24 @@ function ZenoBlock()
     all_t = t > -1;
     domains = {all_t, all_t, all_t};
     z_t = [z t];
+    z_t_left = [true,  true,  true, ...
+                false, false, false, ...
+                false, false, ...
+                false, false, ...
+                true];
+
+    dxy_label = 'Block linear velocity [m/s]';
+    dtheta_label = 'Block angular velocity $\dot\theta$ [rad/s]';
+    xy_label = 'Block position [m]';
+    theta_label = 'Block rocking angle $\theta$ [rad]';
+    time_label = 'Time $t$ [s]';
+    impulse_label = 'Impulse [N$\cdot$s]';
+    labels = {xy_label, xy_label, theta_label, ...
+              dxy_label, dxy_label, dtheta_label, ...
+              impulse_label, impulse_label, ...
+              impulse_label, impulse_label, ...
+              time_label};
+
     idxs = {[3 6], [3 6], [11 7 9]};
     state_leg = {'$\theta$','$\dot\theta$'};
     legends = {state_leg,state_leg,{'t', '$\Lambda_{n,1}$', '$\Lambda_{n,2}$'}};
@@ -148,8 +170,14 @@ function ZenoBlock()
         
         qq = 1;
         for j = idxs{i}
+            if z_t_left(j)
+                yyaxis left
+            else
+                yyaxis right
+            end
             plot(x_var(domains{i}), z_t(domains{i}, j), ...
                 styler.linestyles{qq});
+            ylabel(labels{j});
             qq = qq + 1;
         end
         
@@ -160,7 +188,20 @@ function ZenoBlock()
         if ~strcmp(titles{i},'')
             title(titles{i});
         end
+    
+
         styler.asSeries();
+        % align 0 on yaxes
+        yyaxis right; ylimr = get(gca,'Ylim');ratio = ylimr(1)/ylimr(2);
+        yyaxis left; yliml = get(gca,'Ylim');
+        if yliml(2)*ratio<yliml(1)
+            set(gca,'Ylim',[yliml(2)*ratio yliml(2)]);
+        elseif ratio == inf
+            set(gca,'Ylim',[yliml(1) 0]);
+        else
+            set(gca,'Ylim',[yliml(1) yliml(1)/ratio]);
+        end
+
         styler.print([prefix names{i}]);
     end
 end

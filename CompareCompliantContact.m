@@ -173,6 +173,8 @@ function CompliantImpactRun(stiffness, range, type)
         v_Routh{i} = Jn * v_Routh{i};
         v_Routh_ends(:, i) = v_Routh{i}(:, end);
     end
+    disp("Maximum speeds for routh (A/B):")
+    largest_routh = max(v_Routh_ends, [], 2)
     keeps = DataTools.SparseScatter(v_Routh_ends, 100);
     v_Routh_ends = v_Routh_ends(:, keeps);
     
@@ -184,6 +186,12 @@ function CompliantImpactRun(stiffness, range, type)
     for j = 1:nruns
         v_n_f(j, :) = get_v_n_v_t(x_final(:, j));
     end
+
+    disp("Maximum speeds for complaint (A/B):")
+    largest_compliant = max(v_n_f, [], 1)
+
+    disp("Maximum speed ratio for compliant (A/B):")
+    max(largest_compliant ./ largest_routh)
     
     compliant_marker_scale = 0.5;
     plot_marker_scale = 50;
